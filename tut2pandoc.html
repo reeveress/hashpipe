@@ -1,0 +1,134 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+</head>
+<body>
+<h1 id="hashpipe-tutorial-2">Hashpipe Tutorial 2</h1>
+<p>In the second tutorial we will make a counter that stores its value inside a status buffer which could be viewed using hashpipe_status_monitor.rb script.The init function remains the same aside from 'Hello World!' being changed to 'Init World!'. The run function now has a while loop with the i counter incrementing indefinitely or until terminated by the user.</p>
+<div class="sourceCode"><pre class="sourceCode c"><code class="sourceCode c"><span class="ot">#include &lt;stdio.h&gt;</span>
+<span class="ot">#include &lt;pthread.h&gt;</span>
+<span class="ot">#include &lt;unistd.h&gt;</span>
+<span class="co">//You must include the hashpipe header file to access hashpipe definitions</span>
+<span class="ot">#include &quot;hashpipe.h&quot;</span>
+<span class="dt">static</span> <span class="dt">int</span> init(hashpipe_thread_args_t * args)
+{
+        printf(<span class="st">&quot;Init World!</span><span class="ch">\n</span><span class="st">&quot;</span>);
+        <span class="kw">return</span> <span class="dv">0</span>;
+}
+
+<span class="co">//the main body of the thread is the run function. This time we implemented a</span>
+<span class="co">//loop that runs continuously.</span>
+
+<span class="dt">static</span> <span class="dt">void</span> *run(hashpipe_thread_args_t * args)
+{
+        hashpipe_status_t st = args-&gt;st;
+        <span class="dt">int</span> i=<span class="dv">0</span>;
+        <span class="kw">while</span> (<span class="dv">1</span>){
+                hashpipe_status_lock_safe(&amp;st);
+                <span class="co">// Store counter value in status buffer</span>
+                hputi4(st.buf, <span class="st">&quot;COUNTER&quot;</span>, i);
+                hashpipe_status_unlock_safe(&amp;st);
+                i++;
+                sleep(<span class="dv">1</span>);
+        }
+}</code></pre></div>
+<p>The make file remains virtually unchanged aside from file name changes(hpdemo.so to hpdemo2.so etc).</p>
+<div class="sourceCode"><pre class="sourceCode makefile"><code class="sourceCode makefile">//This structure is the hashpipe thread descriptor that gets passed to hashpipe
+//when the plugin loads.This is the runtime information about the thread e.g.
+//run is a pointer to the above run function
+static hashpipe_thread_desc_t <span class="dt">hpdemo2_thread </span><span class="ch">=</span><span class="st"> {</span>
+    name: <span class="st">&quot;hpdemo2_thread&quot;</span>,
+    skey: <span class="st">&quot;HPD2STAT&quot;</span>,
+    init: init,
+    run:  run,
+    ibuf_desc: {NULL},
+    obuf_desc: {NULL}
+};
+             <span class="ch">-</span><span class="fu">I. -I</span><span class="ch">$(</span><span class="dt">CUDA_DIR</span><span class="ch">)</span><span class="fu">/include -I/usr/local/include </span><span class="ch">\</span>
+<span class="fu">             -L. -L/usr/local/lib </span><span class="ch">\</span>
+<span class="fu">             -lhashpipe -lrt -lm</span>
+<span class="dt">HPDEMO_LIB_TARGET   </span><span class="ch">=</span><span class="st"> hpdemo2.so</span>
+<span class="dt">HPDEMO_LIB_SOURCES  </span><span class="ch">=</span><span class="st"> hpdemo2.c</span>
+<span class="dt">HPDEMO_LIB_INCLUDES </span><span class="ch">=</span>
+
+<span class="dv">all:</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span>
+
+<span class="dv">$(HPDEMO_LIB_TARGET):</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_SOURCES</span><span class="ch">)</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_INCLUDES</span><span class="ch">)</span><span class="dt"> </span>
+    <span class="ch">$(</span><span class="dt">CC</span><span class="ch">)</span> -o <span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span> <span class="ch">$(</span><span class="dt">HPDEMO_LIB_SOURCES</span><span class="ch">)</span> <span class="ch">$(</span><span class="dt">HPDEMO_LIB_CCFLAGS</span><span class="ch">)</span>
+
+<span class="dv">tags:</span>
+    ctags -R .
+
+<span class="dv">clean:</span><span class="dt"> </span>
+    rm -f <span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span> tags
+
+<span class="dt">prefix</span><span class="ch">=</span><span class="st">/usr/local</span>
+<span class="dt">LIBDIR</span><span class="ch">=$(</span><span class="dt">prefix</span><span class="ch">)</span><span class="st">/lib</span>
+<span class="dt">BINDIR</span><span class="ch">=$(</span><span class="dt">prefix</span><span class="ch">)</span><span class="st">/bin</span>
+<span class="dv">install-lib:</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span>
+    mkdir -p <span class="st">&quot;</span><span class="ch">$(</span><span class="dt">DESTDIR</span><span class="ch">)$(</span><span class="dt">LIBDIR</span><span class="ch">)</span><span class="st">&quot;</span>
+    install -p <span class="ch">$^</span> <span class="st">&quot;</span><span class="ch">$(</span><span class="dt">DESTDIR</span><span class="ch">)$(</span><span class="dt">LIBDIR</span><span class="ch">)</span><span class="st">&quot;</span>
+<span class="dv">install:</span><span class="dt"> install-lib</span>
+
+<span class="ot">.PHONY:</span><span class="dt"> all tags clean install install-lib</span>
+<span class="co"># vi: set ts=8 noet :</span></code></pre></div>
+<h1 id="compiling">Compiling</h1>
+<p>Type this into command line/terminal to create a shared object This builds the plugin (i.e. the default target defined in the Makefile).</p>
+<pre><code>make</code></pre>
+<h1 id="installing">Installing</h1>
+<p>Installs the plugin in the hashpipe plugin directory.</p>
+<pre><code>make install</code></pre>
+<h1 id="running">Running</h1>
+<p>Run this in the command line/terminal:</p>
+<pre><code>hashpipe -p hpdemo2 hpdemo2_thread</code></pre>
+<p>In a new terminal window, run this script(it should be a part of the repository you cloned from github):</p>
+<pre><code>hashpipe_status_monitor.rb</code></pre>
+<p>You should see the status monitor pop up with a counter.</p>
+<div class="figure">
+<img src="status_monitor.png" alt="" />
+
+</div>
+</body>
+</html>
