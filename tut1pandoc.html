@@ -1,0 +1,90 @@
+<h1 id="hashpipe-tutorial-1">Hashpipe Tutorial 1</h1>
+<p>HASHPIPE is a GUPPI derivative that extends the functionality of the original GUPPI architecture. Hashpipe allows to pass thread options in command line, construct the pipeline at runtime, specify processor affinities and get real time information from the status buffer that has direct access to thread memory buffers. Status Monitor offers a great way to check the status of running threads.</p>
+<ul>
+<li>Network Thread - receives and collates 10GbE packets from F engines</li>
+<li>Fluffing Thread - reorders and 'fluffs' 4 bit data to 8 bit data(since GPU accepts 8 bit data)</li>
+<li>GPU Thread - passes data to/from xGPU library</li>
+<li>Output Thread - reorders and sends visibility data to catcher</li>
+</ul>
+<h1 id="software-prerequisites">Software prerequisites</h1>
+<p>Make sure you have HASHPIPE installed from <a href="https://github.com/david-macmahon/hashpipe">github</a>.</p>
+<h1 id="writing-your-first-plugin">Writing your first plugin</h1>
+<p>To start your first HASHPIPE plugin, you must first have a Makefile in your directory. Makefile tells make how to compile and link a program. The plugin Makefile will build a shared object file from the plugin script.c. For more information refer to gnu make <a href="https://www.gnu.org/software/make/manual/html_node/Introduction.html#Introduction">documentation</a>. This is what our Makefile will look like:</p>
+<div class="sourceCode"><pre class="sourceCode makefile"><code class="sourceCode makefile"><span class="dt">CC          </span><span class="ch">=</span><span class="st"> gcc</span>
+<span class="dt">HPDEMO_LIB_CCFLAGS     </span><span class="ch">=</span><span class="st"> -g -O3 -fPIC -shared -lstdc++ -mavx -msse4 </span><span class="ch">\</span>
+<span class="st">                     -I. -I</span><span class="ch">$(</span><span class="dt">CUDA_DIR</span><span class="ch">)</span><span class="st">/include -I/usr/local/include </span><span class="ch">\</span>
+<span class="st">                     -L. -L/usr/local/lib </span><span class="ch">\</span>
+<span class="st">                     -lhashpipe -lrt -lm</span>
+<span class="dt">HPDEMO_LIB_TARGET   </span><span class="ch">=</span><span class="st"> hpdemo2.so</span>
+<span class="dt">HPDEMO_LIB_SOURCES  </span><span class="ch">=</span><span class="st"> hpdemo2.c</span>
+<span class="dt">HPDEMO_LIB_INCLUDES </span><span class="ch">=</span>
+
+<span class="dv">all:</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span>
+
+<span class="dv">$(HPDEMO_LIB_TARGET):</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_SOURCES</span><span class="ch">)</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_INCLUDES</span><span class="ch">)</span>
+        <span class="ch">$(</span><span class="dt">CC</span><span class="ch">)</span> -o <span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span> <span class="ch">$(</span><span class="dt">HPDEMO_LIB_SOURCES</span><span class="ch">)</span> <span class="ch">$(</span><span class="dt">HPDEMO_LIB_CCFLAGS</span><span class="ch">)</span>
+
+<span class="dv">tags:</span>
+        ctags -R .
+
+<span class="dv">clean:</span>
+        rm -f <span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span> tags
+
+<span class="dt">prefix</span><span class="ch">=</span><span class="st">/usr/local</span>
+<span class="dt">LIBDIR</span><span class="ch">=$(</span><span class="dt">prefix</span><span class="ch">)</span><span class="st">/lib</span>
+<span class="dt">BINDIR</span><span class="ch">=$(</span><span class="dt">prefix</span><span class="ch">)</span><span class="st">/bin</span>
+<span class="dv">install-lib:</span><span class="dt"> </span><span class="ch">$(</span><span class="dt">HPDEMO_LIB_TARGET</span><span class="ch">)</span>
+        mkdir -p <span class="st">&quot;</span><span class="ch">$(</span><span class="dt">DESTDIR</span><span class="ch">)$(</span><span class="dt">LIBDIR</span><span class="ch">)</span><span class="st">&quot;</span>
+        install -p <span class="ch">$^</span> <span class="st">&quot;</span><span class="ch">$(</span><span class="dt">DESTDIR</span><span class="ch">)$(</span><span class="dt">LIBDIR</span><span class="ch">)</span><span class="st">&quot;</span>
+<span class="dv">install:</span><span class="dt"> install-lib</span>
+
+<span class="ot">.PHONY:</span><span class="dt"> all tags clean install install-lib</span>
+<span class="co"># vi: set ts=8 noet :</span></code></pre></div>
+<p>The plugin itself is a c script:</p>
+<div class="sourceCode"><pre class="sourceCode c"><code class="sourceCode c">
+
+<span class="ot">#include &lt;stdio.h&gt;</span>
+<span class="co">//You must include the hashpipe header file to access hashpipe definitions</span>
+<span class="ot">#include &quot;hashpipe.h&quot;</span>
+<span class="co">//the main body of the thread is the run function Normally this fuction will</span>
+<span class="co">//have a loop to have it run continuously but for this demo it&#39;s just a simple</span>
+<span class="co">//print statement</span>
+<span class="dt">static</span> <span class="dt">void</span> *run(hashpipe_thread_args_t * args)
+{
+        printf(<span class="st">&quot;Hello World!</span><span class="ch">\n</span><span class="st">&quot;</span>);
+}
+<span class="co">//This structure is the hashpipe thread descriptor that gets passed to hashpipe</span>
+<span class="co">//when the pluggin loads This is the runtime information about the thread e.g.</span>
+<span class="co">//run is a pointer to the above run function</span>
+<span class="dt">static</span> hashpipe_thread_desc_t hpdemo_thread = {
+    name: <span class="st">&quot;hpdemo_thread&quot;</span>,
+    skey: <span class="st">&quot;HPDSTAT&quot;</span>,
+    init: NULL,
+    run:  run,
+    ibuf_desc: {NULL},
+    obuf_desc: {NULL}
+};
+<span class="co">//This is how the hashpipe learns about the existence of the thread descriptor</span>
+<span class="co">//The constructor attribute means that this function will be called</span>
+<span class="co">//automatically when hashpipe loads the pluggin</span>
+<span class="dt">static</span> __attribute__((constructor)) <span class="dt">void</span> ctor()
+{
+<span class="co">//register_hashpipe_thread function is part of hashpipe and needs a pointer to</span>
+<span class="co">//hashpipe thread descriptor(hpdemo_thread).  It has to be called once per</span>
+<span class="co">//hashpipe thread </span>
+  register_hashpipe_thread(&amp;hpdemo_thread);
+}</code></pre></div>
+<h1 id="compiling">Compiling</h1>
+<p>Type this into command line/terminal to create a shared object This builds the plugin (i.e. the default target defined in the Makefile).</p>
+<pre><code>make</code></pre>
+<h1 id="installing">Installing</h1>
+<p>Installs the plugin in the hashpipe plugin directory.</p>
+<pre><code>make install</code></pre>
+<h1 id="running">Running</h1>
+<p>To compile the file and create a share object use the command</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="kw">hashpipe</span> -p hpdemo hpdemo_thread</code></pre></div>
+<p>hpdemo after the -p option specifies the plugin name followed by the thread name as specified in the thread descriptor's 'name' field. The output will look something like this:</p>
+<pre><code>initing  thread &#39;hpdemo_thread&#39; with databufs 0 and 1
+starting thread &#39;hpdemo_thread&#39; with databufs 0 and 1
+Hello World!
+Joined thread &#39;hpdemo_thread&#39;</code></pre>
