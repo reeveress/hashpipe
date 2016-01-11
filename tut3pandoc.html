@@ -1,0 +1,117 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+</head>
+<body>
+<h1 id="hashpipe-tutorial-3">Hashpipe Tutorial 3</h1>
+<p>Now that you've familiarized yourself with the basic hashpipe functions, it is time to receive some UDP packets. Make sure to alter Makefile so the c source code and share object file names are hpdemo3.c and hpdemo3.so, respectively.</p>
+<div class="sourceCode"><pre class="sourceCode c"><code class="sourceCode c"><span class="ot">#include &lt;stdio.h&gt;</span>
+<span class="ot">#include &lt;pthread.h&gt;</span>
+<span class="ot">#include &lt;unistd.h&gt;</span>
+<span class="ot">#include &lt;string.h&gt;</span>
+<span class="co">//You must include the hashpipe header file to access hashpipe definitions</span>
+<span class="ot">#include &quot;hashpipe.h&quot;</span>
+<span class="ot">#define PKTSIZE 10000</span>
+<span class="co">//defining a struct of type hashpipe_udp_params as defined in hashpipe_udp.h</span>
+<span class="dt">static</span> <span class="kw">struct</span> hashpipe_udp_params params;
+<span class="dt">static</span> <span class="dt">int</span> init(hashpipe_thread_args_t * args)
+{
+        hashpipe_status_t st = args-&gt;st;
+        strcpy(params.bindhost,<span class="st">&quot;127.0.0.1&quot;</span>);
+        <span class="co">//selecting a port to listen to</span>
+    params.port = <span class="dv">1500</span>;
+        params.packet_size = <span class="dv">0</span>;
+    hashpipe_udp_init(&amp;params);
+        hashpipe_status_lock_safe(&amp;st);
+        hputi4(st.buf, <span class="st">&quot;NPACKETS&quot;</span>, <span class="dv">0</span>);
+        hputi4(st.buf, <span class="st">&quot;NBYTES&quot;</span>, <span class="dv">0</span>);
+        hashpipe_status_unlock_safe(&amp;st);
+        <span class="kw">return</span> <span class="dv">0</span>;
+
+}
+
+<span class="co">//The run function now uses a while loop to continuously receive packets from</span>
+<span class="co">//localhost(the .bindhost &quot;127.0.0.1&quot; address in the init function</span>
+<span class="dt">static</span> <span class="dt">void</span> *run(hashpipe_thread_args_t * args)
+{
+    hashpipe_status_t st = args-&gt;st;
+        <span class="dt">int</span> npackets = <span class="dv">0</span>;
+        <span class="dt">int</span> nbytes = <span class="dv">0</span>;
+        <span class="dt">char</span> data[PKTSIZE];
+        <span class="dt">int</span> n;
+        <span class="kw">while</span> (<span class="dv">1</span>){
+
+                n = recvfrom(params.sock,data,PKTSIZE,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>);
+                <span class="co">//recvfrom return -1 when no data is received, otherwise it</span>
+                <span class="co">//receives the byte size of the packet</span>
+                <span class="kw">if</span> (n == -<span class="dv">1</span>){
+                        sleep(<span class="dv">1</span>);
+                }<span class="kw">else</span>{
+
+                        npackets++;
+                        nbytes += n;
+                        hashpipe_status_lock_safe(&amp;st);
+                        <span class="co">//adding fields into the status buffer</span>
+            hputi4(st.buf, <span class="st">&quot;NPACKETS&quot;</span>, npackets);
+                        hputi4(st.buf, <span class="st">&quot;NBYTES&quot;</span>, nbytes);
+                        hashpipe_status_unlock_safe(&amp;st);
+                }
+        }
+}</code></pre></div>
+<h1 id="sending-packets">Sending Packets</h1>
+<p>There are various ways that you can send packets in localhost. One way(and probably the simplest) is to download netcat if you don't already have it installed and run this line in terminal:</p>
+<pre><code>echo foo | nc -u -w 1 127.0.0.1 1500</code></pre>
+<p>-u refers to the UDP nature of packets -w makes sure that netcat doesn't wait for response before returning to the prompt</p>
+<p>Another way is to send it through ipython socket:</p>
+<pre><code>In [1]: import socket
+
+In [2]: sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+In [3]: addr = (&quot;127.0.0.1&quot;,1500)
+
+In [5]: sock.sendto(&quot;hello&quot;, addr)</code></pre>
+<p>Now if you run hashpipe_status_monitor.rb script in another terminal you should get the amount of packets that were sent over the socket.</p>
+</body>
+</html>
